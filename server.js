@@ -15,6 +15,24 @@ const deleteTimers = {}; // kept outside rooms: timers can't be sent over a sock
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I and O, easy to read aloud
 const EMPTY_ROOM_TTL = 5 * 60 * 1000; // an empty room waits 5 minutes before deletion
 
+const COUNTDOWN_SECONDS = 3;
+
+// Same normalization as on the client: players get text that can be typed as is
+function normalizeChars(str) {
+  return str
+    .replace(/[\u2018\u2019\u02BC`]/g, "'")            // ‘ ’ ʼ `
+    .replace(/[\u2011\u2013\u2014]/g, '-')             // ‑ – —
+    .replace(/[\u00AB\u00BB\u201C\u201D\u201E]/g, '"') // « » “ ” „
+    .replace(/\u2026/g, '...')                         // …
+    .replace(/\u00A0/g, ' ');                          // non-breaking space
+}
+
+function normalizeText(str) {
+  return normalizeChars(str).replace(/\s+/g, ' ').trim();
+}
+
+const TEXTS = require('./texts.json').map(normalizeText);
+
 function createRoomCode() {
   let code;
   do {
@@ -100,6 +118,52 @@ io.on('connection', (socket) => {
     sendRoomState(code);
   });
 
+  socket.on('start_race', () => {
+    const { roomCode, playerId } = socket.data;
+    const room = rooms[roomCode];
+
+    // Only the host can start, and only from the lobby
+    if (!room || room.hostId !== playerId || room.status !== 'lobby') return;
+
+    room.status = 'countdown';
+    room.countdown = COUNTDOWN_SECONDS;
+    room.text = TEXTS[Math.floor(Math.random() * TEXTS.length)];
+    room.startedAt = null;
+    for (const player of Object.values(room.players)) {
+      player.progress = 0;
+      player.finishedAt = null;
+      player.speed = null;
+    }
+    console.log(`Race started in room ${roomCode}`);
+    sendRoomState(roomCode);
+
+    const timer = setInterval(() => {
+      room.countdown--;
+      if (room.countdown === 0) {
+        clearInterval(timer);
+        room.status = 'racing';
+        room.startedAt = Date.now();
+      }
+      sendRoomState(roomCode);
+    }, 1000);
+  });
+
+  socket.on('progress', (data) => {
+    const { roomCode, playerId } = socket.data;
+    const room = rooms[roomCode];
+    const player = room?.players[playerId];
+    if (!player || room.status !== 'racing') return;
+
+    // A whole number that only grows and can't go past the end of the text
+    const progress = data?.progress;
+    if (!Number.isInteger(progress) || progress <= player.progress || progress > room.text.length) {
+      return;
+    }
+
+    player.progress = progress;
+    sendRoomState(roomCode);
+  });
+
   socket.on('disconnect', () => {
     const { roomCode, playerId } = socket.data;
     const room = rooms[roomCode];
@@ -108,11 +172,17 @@ io.on('connection', (socket) => {
     // Not in a room, or this player has already reconnected with a new socket
     if (!player || player.socketId !== socket.id) return;
 
-    delete room.players[playerId];
-    console.log(`${player.name} left room ${roomCode}`);
+    if (room.status === 'lobby') {
+      delete room.players[playerId];
+      console.log(`${player.name} left room ${roomCode}`);
+    } else {
+      // During a race keep the player and their progress: they may come back
+      player.socketId = null;
+      console.log(`${player.name} disconnected during a race in room ${roomCode}`);
+    }
 
-    const ids = Object.keys(room.players);
-    if (ids.length === 0) {
+    const onlineIds = Object.keys(room.players).filter((id) => room.players[id].socketId);
+    if (onlineIds.length === 0) {
       deleteTimers[roomCode] = setTimeout(() => {
         delete rooms[roomCode];
         delete deleteTimers[roomCode];
@@ -120,7 +190,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.hostId === playerId) room.hostId = ids[0];
+    if (!room.players[room.hostId]) room.hostId = onlineIds[0];
     sendRoomState(roomCode);
   });
 });

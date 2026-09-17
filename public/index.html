@@ -21,14 +21,16 @@
     <p>Room: <strong id="room-code"></strong></p>
     <button id="copy-link">Copy link</button>
     <ul id="player-list"></ul>
+    <button id="start-button" hidden>Start race</button>
+    <p id="waiting-text" hidden>Waiting for the host to start the race…</p>
   </section>
 
   <section id="race-screen" hidden>
+    <ul id="race-players"></ul>
     <div id="text"></div>
     <input id="input" type="text"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <p id="stats"></p>
-    <button id="restart">Again</button>
   </section>
 
   <script src="/socket.io/socket.io.js"></script>

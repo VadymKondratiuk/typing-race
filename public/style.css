@@ -53,3 +53,17 @@ button {
   font-size: 1.2rem;
   line-height: 1.8;
 }
+
+#race-players {
+  list-style: none;
+  padding: 0;
+}
+
+#race-players li {
+  margin-bottom: 8px;
+}
+
+#race-players progress {
+  display: block;
+  width: 100%;
+}
