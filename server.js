@@ -13,11 +13,13 @@ const rooms = {};
 // Timers are kept outside rooms: they can't be sent over a socket
 const deleteTimers = {};
 const raceTimers = {};
+const textDecks = {}; // texts each room hasn't played yet (outside rooms, so players can't peek)
 
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I and O, easy to read aloud
 const EMPTY_ROOM_TTL = 5 * 60 * 1000; // an empty room waits 5 minutes before deletion
 const COUNTDOWN_SECONDS = 3;
 const RACE_TIME_LIMIT = 2 * 60 * 1000; // a race ends after 2 minutes even if not everyone finished
+const PLAYER_COLORS = 8; // how many player colors style.css defines
 
 // Same normalization as on the client: players get text that can be typed as is
 function normalizeChars(str) {
@@ -34,6 +36,28 @@ function normalizeText(str) {
 }
 
 const TEXTS = require('./texts.json').map(normalizeText);
+
+// Texts come in random order and don't repeat until the room has played them all
+function nextText(code) {
+  if (!textDecks[code]?.length) {
+    const deck = TEXTS.map((_, i) => i);
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    textDecks[code] = deck;
+  }
+  return TEXTS[textDecks[code].pop()];
+}
+
+// The first color nobody in the room has yet
+function freeColor(room) {
+  const used = Object.values(room.players).map((p) => p.color);
+  for (let i = 0; i < PLAYER_COLORS; i++) {
+    if (!used.includes(i)) return i;
+  }
+  return Object.keys(room.players).length % PLAYER_COLORS;
+}
 
 function createRoomCode() {
   let code;
@@ -64,6 +88,7 @@ function addPlayer(socket, code, playerId, name) {
   } else {
     room.players[playerId] = {
       name,
+      color: freeColor(room),
       socketId: socket.id,
       progress: 0,
       finishedAt: null,
@@ -102,6 +127,7 @@ function endRace(code) {
 
   room.results = players.map((p) => ({
     name: p.name,
+    color: p.color,
     seconds: p.finishedAt ? Math.round((p.finishedAt - room.startedAt) / 100) / 10 : null,
     speed: p.speed,
     percent: Math.round((p.progress / room.text.length) * 100),
@@ -173,7 +199,7 @@ io.on('connection', (socket) => {
 
     room.status = 'countdown';
     room.countdown = COUNTDOWN_SECONDS;
-    room.text = TEXTS[Math.floor(Math.random() * TEXTS.length)];
+    room.text = nextText(roomCode);
     room.startedAt = null;
     for (const player of Object.values(room.players)) {
       player.progress = 0;
@@ -241,6 +267,7 @@ io.on('connection', (socket) => {
       deleteTimers[roomCode] = setTimeout(() => {
         delete rooms[roomCode];
         delete deleteTimers[roomCode];
+        delete textDecks[roomCode];
       }, EMPTY_ROOM_TTL);
       return;
     }

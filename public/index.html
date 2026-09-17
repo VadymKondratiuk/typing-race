@@ -4,46 +4,67 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Typing Race</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23ff6a1a' stroke='%230b2545' stroke-width='3'/%3E%3Crect x='3' y='13' width='26' height='6' fill='%230b2545'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=Unbounded:wght@400;600;800&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Typing Race</h1>
-  <p id="status">Connecting…</p>
+  <header class="site-header">
+    <h1>Typing Race</h1>
+    <p id="status" class="status">Connecting…</p>
+  </header>
 
-  <section id="join-screen">
-    <input id="name-input" type="text" maxlength="20" placeholder="Your name"
-      autocomplete="off" autocorrect="off" spellcheck="false">
-    <button id="join-button">Create room</button>
-    <p id="join-error" class="error-text"></p>
-  </section>
+  <main>
+    <section id="join-screen">
+      <p class="intro">Create a room, send your friends the link and race to type the same text.</p>
+      <div class="join-row">
+        <input id="name-input" type="text" maxlength="20" placeholder="Your name"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+        <button id="join-button" class="button primary">Create room</button>
+      </div>
+      <p id="join-error" class="error-text" role="alert"></p>
+    </section>
 
-  <section id="lobby-screen" hidden>
-    <p>Room: <strong id="room-code"></strong></p>
-    <button id="copy-link">Copy link</button>
+    <section id="lobby-screen" hidden>
+      <div class="room-bar">
+        <p class="room-label">Room <strong id="room-code" class="plate"></strong></p>
+        <button id="copy-link" class="button">Copy link</button>
+      </div>
 
-    <div id="results" hidden>
-      <h2>Last race</h2>
-      <table>
-        <thead>
-          <tr><th>#</th><th>Player</th><th>Time</th><th>Speed</th></tr>
-        </thead>
-        <tbody id="results-body"></tbody>
-      </table>
-    </div>
+      <div id="results" class="results-box" hidden>
+        <h2>Last race</h2>
+        <table class="results">
+          <thead>
+            <tr><th>#</th><th>Player</th><th>Result</th></tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
 
-    <h2>Players</h2>
-    <ul id="player-list"></ul>
-    <button id="start-button" hidden>Start race</button>
-    <p id="waiting-text" hidden>Waiting for the host to start the race…</p>
-  </section>
+      <h2>Players</h2>
+      <ul id="player-list" class="player-list"></ul>
+      <button id="start-button" class="button primary big" hidden>Start race</button>
+      <p id="waiting-text" class="muted" hidden>Waiting for the host to start the race…</p>
+    </section>
 
-  <section id="race-screen" hidden>
-    <ul id="race-players"></ul>
-    <div id="text"></div>
-    <input id="input" type="text"
-      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <p id="stats"></p>
-  </section>
+    <section id="race-screen" hidden>
+      <div class="track">
+        <div class="track-top">
+          <div id="lights" class="lights" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <p id="stats" class="race-message"></p>
+        </div>
+        <ul id="race-players" class="lanes"></ul>
+      </div>
+
+      <div id="text" class="passage"></div>
+      <input id="input" class="type-input" type="text"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </section>
+  </main>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>

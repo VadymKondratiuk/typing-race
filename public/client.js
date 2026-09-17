@@ -24,6 +24,8 @@ const startButton = document.getElementById('start-button');
 const waitingText = document.getElementById('waiting-text');
 const racePlayers = document.getElementById('race-players');
 
+const lanes = new Map(); // playerId -> lane <li>, reused so the cars move smoothly
+
 function showScreen(screen) {
   for (const s of [joinScreen, lobbyScreen, raceScreen]) {
     s.hidden = s !== screen;
@@ -62,21 +64,54 @@ function handleResponse(res) {
   showScreen(joinScreen);
 }
 
+// A small race car in the player's color (the colors live in style.css)
+const CAR_SVG = `<svg viewBox="0 0 36 18" aria-hidden="true">
+  <circle class="wheel" cx="10" cy="14.2" r="3.3"/>
+  <circle class="wheel" cx="26" cy="14.2" r="3.3"/>
+  <path class="body" d="M2 13.5V9c0-1.4.9-2 2.2-2H10l3.4-4.5h9L25.8 7H31c2 0 3 1.3 3 3v3.5z"/>
+  <path class="window" d="M14.2 3.9h7.5l2.4 3.1H11.8z"/>
+</svg>`;
+
+function createCar(color) {
+  const car = document.createElement('span');
+  car.className = `car color-${color}`;
+  car.innerHTML = CAR_SVG;
+  return car;
+}
+
+function createTag(text, extraClass = '') {
+  const tag = document.createElement('span');
+  tag.className = `tag ${extraClass}`.trim();
+  tag.textContent = text;
+  return tag;
+}
+
 function renderResults(results) {
   resultsBox.hidden = results.length === 0;
   resultsBody.replaceChildren();
 
   results.forEach((r, i) => {
-    const cells = r.seconds !== null
-      ? [i + 1, r.name, `${r.seconds} s`, `${r.speed} chars/min`]
-      : ['—', r.name, `Didn't finish (${r.percent}%)`, '—'];
-
+    const finished = r.seconds !== null;
     const tr = document.createElement('tr');
-    for (const value of cells) {
-      const td = document.createElement('td');
-      td.textContent = value;
-      tr.append(td);
-    }
+    if (finished && i === 0) tr.className = 'winner';
+
+    const placeCell = document.createElement('td');
+    placeCell.textContent = finished ? i + 1 : '—';
+
+    const playerCell = document.createElement('td');
+    const player = document.createElement('span');
+    player.className = 'player-cell';
+    player.append(createCar(r.color), r.name);
+    playerCell.append(player);
+
+    // Time on top, speed below it: the table stays narrow enough for a phone
+    const resultCell = document.createElement('td');
+    const detail = document.createElement('span');
+    detail.className = 'detail';
+    detail.textContent = finished ? `${r.speed} chars/min` : `${r.percent}% typed`;
+    resultCell.append(finished ? `${r.seconds} s` : "Didn't finish", detail);
+
+    tr.append(placeCell, playerCell, resultCell);
     resultsBody.append(tr);
   });
 }
@@ -88,9 +123,14 @@ function renderLobby(room) {
   playerList.replaceChildren();
   for (const [id, player] of Object.entries(room.players)) {
     const li = document.createElement('li');
-    li.textContent = player.name;
-    if (id === room.hostId) li.textContent += ' 👑';
-    if (id === playerId) li.textContent += ' (you)';
+    li.append(createCar(player.color), player.name);
+    if (id === room.hostId) {
+      const crown = document.createElement('span');
+      crown.textContent = '👑';
+      crown.title = 'Host';
+      li.append(crown);
+    }
+    if (id === playerId) li.append(createTag('you'));
     playerList.append(li);
   }
 
@@ -100,19 +140,39 @@ function renderLobby(room) {
 }
 
 function renderRacePlayers(room) {
-  racePlayers.replaceChildren();
-  for (const [id, player] of Object.entries(room.players)) {
-    const li = document.createElement('li');
-    li.textContent = player.name;
-    if (id === playerId) li.textContent += ' (you)';
-    if (!player.socketId) li.textContent += ' (offline)';
-    if (player.finishedAt) li.textContent += ` finished, ${player.speed} chars/min`;
+  // Remove lanes of players who have left the room
+  for (const [id, lane] of lanes) {
+    if (!room.players[id]) {
+      lane.remove();
+      lanes.delete(id);
+    }
+  }
 
-    const bar = document.createElement('progress');
-    bar.max = room.text.length;
-    bar.value = player.progress;
-    li.append(bar);
-    racePlayers.append(li);
+  for (const [id, player] of Object.entries(room.players)) {
+    let lane = lanes.get(id);
+    if (!lane) {
+      lane = document.createElement('li');
+      lane.innerHTML = '<div class="lane-head"></div><div class="lane-track"></div>';
+      lane.querySelector('.lane-track').append(createCar(player.color));
+      lanes.set(id, lane);
+    }
+
+    const head = lane.querySelector('.lane-head');
+    head.replaceChildren(player.name);
+    if (id === playerId) head.append(createTag('you'));
+    if (!player.socketId) head.append(createTag('offline', 'muted'));
+    if (player.finishedAt) {
+      const info = document.createElement('span');
+      info.className = 'lane-info';
+      info.textContent = `${player.speed} chars/min`;
+      head.append(info);
+    }
+
+    const car = lane.querySelector('.car');
+    car.className = `car color-${player.color}`;
+    car.style.setProperty('--progress', player.progress / room.text.length);
+
+    racePlayers.append(lane); // an existing lane just moves, so the order stays the same
   }
 }
 
@@ -150,12 +210,14 @@ startButton.addEventListener('click', () => {
 
 socket.on('connect', () => {
   statusEl.textContent = 'Connected';
+  statusEl.dataset.state = 'online';
   // After a reconnect the server sees a new socket, so join the room again
   if (joined) joinOrCreate();
 });
 
 socket.on('disconnect', () => {
-  statusEl.textContent = 'Disconnected, reconnecting…';
+  statusEl.textContent = 'Reconnecting…';
+  statusEl.dataset.state = 'offline';
 });
 
 socket.on('room_state', (room) => {
@@ -167,10 +229,17 @@ socket.on('room_state', (room) => {
     renderLobby(room);
     showScreen(lobbyScreen);
   } else {
-    // We've just come from the lobby: a new race, show its text
-    if (lastStatus !== 'countdown' && lastStatus !== 'racing') setupRace(room.text);
+    // We've just come from the lobby: a new race, show its text and empty lanes
+    if (lastStatus !== 'countdown' && lastStatus !== 'racing') {
+      setupRace(room.text);
+      lanes.clear();
+      racePlayers.replaceChildren();
+    }
 
-    if (room.status === 'countdown') statsEl.textContent = `Starting in ${room.countdown}…`;
+    if (room.status === 'countdown') {
+      statsEl.textContent = `Starting in ${room.countdown}…`;
+      setLights(lightEls.length + 1 - room.countdown);
+    }
     if (room.status === 'racing' && lastStatus !== 'racing') beginRace();
 
     renderRacePlayers(room);
@@ -187,6 +256,7 @@ updateJoinButton();
 const textEl = document.getElementById('text');
 const inputEl = document.getElementById('input');
 const statsEl = document.getElementById('stats');
+const lightEls = document.querySelectorAll('#lights span');
 
 let words = []; // current text words
 let wordEls = []; // <span> for each word
@@ -218,6 +288,13 @@ function render() {
   });
 }
 
+// Light up the first `lit` lights, or turn all of them green
+function setLights(lit, go = false) {
+  lightEls.forEach((light, i) => {
+    light.className = go ? 'go' : i < lit ? 'on' : '';
+  });
+}
+
 // New race: show the text; typing is ignored until the start
 function setupRace(text) {
   words = text.split(' ');
@@ -238,9 +315,11 @@ function setupRace(text) {
   });
 
   inputEl.value = '';
+  inputEl.placeholder = 'Type the highlighted word';
   inputEl.disabled = false; // can be tapped during the countdown to open the phone keyboard
   inputEl.classList.remove('error');
   statsEl.textContent = '';
+  setLights(0);
   render();
 }
 
@@ -249,6 +328,7 @@ function beginRace() {
   inputEl.value = '';
   inputEl.focus();
   statsEl.textContent = 'Go!';
+  setLights(0, true);
 }
 
 function finishRace() {
@@ -258,6 +338,10 @@ function finishRace() {
   render();
   statsEl.textContent = 'Finished! Waiting for the others…';
 }
+
+// The text has to be typed: pasting or dragging it into the field does nothing
+inputEl.addEventListener('paste', (e) => e.preventDefault());
+inputEl.addEventListener('drop', (e) => e.preventDefault());
 
 inputEl.addEventListener('input', () => {
   // Before the start typing doesn't count
@@ -287,6 +371,7 @@ inputEl.addEventListener('input', () => {
 
   if (wordDone) {
     inputEl.value = value;
+    inputEl.placeholder = '';
     statsEl.textContent = `Speed: ${speed()} chars/min`;
     render();
   }
