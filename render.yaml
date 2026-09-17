@@ -1,0 +1,9 @@
+# Render Blueprint, used by the "Deploy to Render" button in README.md
+services:
+  - type: web
+    name: typing-race
+    runtime: node
+    plan: free # without this Render picks a paid plan
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
