@@ -1,16 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Typing Race</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Typing Race</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Typing Race Game</h1>
-    <p id="status">Connecting...</p>
-    <p id="online"></p>
+  <h1>Typing Race</h1>
+  <p id="status">Connecting…</p>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="client.js"></script>
+  <section id="join-screen">
+    <input id="name-input" type="text" maxlength="20" placeholder="Your name"
+      autocomplete="off" autocorrect="off" spellcheck="false">
+    <button id="join-button">Create room</button>
+    <p id="join-error" class="error-text"></p>
+  </section>
+
+  <section id="lobby-screen" hidden>
+    <p>Room: <strong id="room-code"></strong></p>
+    <button id="copy-link">Copy link</button>
+    <ul id="player-list"></ul>
+  </section>
+
+  <section id="race-screen" hidden>
+    <div id="text"></div>
+    <input id="input" type="text"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <p id="stats"></p>
+    <button id="restart">Again</button>
+  </section>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>
