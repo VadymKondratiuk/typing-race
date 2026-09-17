@@ -67,3 +67,20 @@ button {
   display: block;
   width: 100%;
 }
+
+h2 {
+  font-size: 1.2rem;
+  margin: 24px 0 8px;
+}
+
+#results table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#results th,
+#results td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #ddd;
+}

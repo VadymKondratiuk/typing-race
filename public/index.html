@@ -20,6 +20,18 @@
   <section id="lobby-screen" hidden>
     <p>Room: <strong id="room-code"></strong></p>
     <button id="copy-link">Copy link</button>
+
+    <div id="results" hidden>
+      <h2>Last race</h2>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Player</th><th>Time</th><th>Speed</th></tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+
+    <h2>Players</h2>
     <ul id="player-list"></ul>
     <button id="start-button" hidden>Start race</button>
     <p id="waiting-text" hidden>Waiting for the host to start the race…</p>

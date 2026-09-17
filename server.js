@@ -10,12 +10,14 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
-const deleteTimers = {}; // kept outside rooms: timers can't be sent over a socket
+// Timers are kept outside rooms: they can't be sent over a socket
+const deleteTimers = {};
+const raceTimers = {};
 
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I and O, easy to read aloud
 const EMPTY_ROOM_TTL = 5 * 60 * 1000; // an empty room waits 5 minutes before deletion
-
 const COUNTDOWN_SECONDS = 3;
+const RACE_TIME_LIMIT = 2 * 60 * 1000; // a race ends after 2 minutes even if not everyone finished
 
 // Same normalization as on the client: players get text that can be typed as is
 function normalizeChars(str) {
@@ -78,6 +80,49 @@ function addPlayer(socket, code, playerId, name) {
   delete deleteTimers[code];
 }
 
+// Everyone who is still connected has finished
+function everyoneFinished(room) {
+  return Object.values(room.players).every((p) => p.finishedAt || !p.socketId);
+}
+
+function endRace(code) {
+  const room = rooms[code];
+  if (!room || room.status !== 'racing') return;
+
+  clearTimeout(raceTimers[code]);
+  delete raceTimers[code];
+
+  // Finished players in the order they finished, then the rest by progress
+  const players = Object.values(room.players).sort((a, b) => {
+    if (a.finishedAt && b.finishedAt) return a.finishedAt - b.finishedAt;
+    if (a.finishedAt) return -1;
+    if (b.finishedAt) return 1;
+    return b.progress - a.progress;
+  });
+
+  room.results = players.map((p) => ({
+    name: p.name,
+    seconds: p.finishedAt ? Math.round((p.finishedAt - room.startedAt) / 100) / 10 : null,
+    speed: p.speed,
+    percent: Math.round((p.progress / room.text.length) * 100),
+  }));
+
+  room.status = 'lobby';
+  room.text = '';
+  room.startedAt = null;
+  console.log(`Race finished in room ${code}`);
+
+  // Players who dropped out during the race leave the room now
+  for (const [id, player] of Object.entries(room.players)) {
+    if (!player.socketId) delete room.players[id];
+  }
+
+  const ids = Object.keys(room.players);
+  if (ids.length === 0) return; // nobody is left, the room is already waiting for deletion
+  if (!room.players[room.hostId]) room.hostId = ids[0];
+  sendRoomState(code);
+}
+
 io.on('connection', (socket) => {
   socket.on('create_room', (data, callback) => {
     const name = cleanName(data?.name);
@@ -90,6 +135,7 @@ io.on('connection', (socket) => {
       status: 'lobby',
       text: '',
       startedAt: null,
+      results: [], // table of the last race
       players: {},
     };
     addPlayer(socket, code, data.playerId, name);
@@ -108,7 +154,7 @@ io.on('connection', (socket) => {
     if (socket.data.roomCode) return callback({ error: 'You are already in a room' });
     if (!room) return callback({ error: 'Room not found' });
     if (room.status !== 'lobby' && !room.players[data.playerId]) {
-      return callback({ error: 'The race has already started' });
+      return callback({ error: 'A race is going on in this room. Try again when it ends', retry: true });
     }
 
     addPlayer(socket, code, data.playerId, name);
@@ -143,6 +189,7 @@ io.on('connection', (socket) => {
         clearInterval(timer);
         room.status = 'racing';
         room.startedAt = Date.now();
+        raceTimers[roomCode] = setTimeout(() => endRace(roomCode), RACE_TIME_LIMIT);
       }
       sendRoomState(roomCode);
     }, 1000);
@@ -161,7 +208,15 @@ io.on('connection', (socket) => {
     }
 
     player.progress = progress;
-    sendRoomState(roomCode);
+    if (progress === room.text.length) {
+      // The server measures the time itself, so the rules are the same for everyone
+      player.finishedAt = Date.now();
+      const minutes = (player.finishedAt - room.startedAt) / 60000;
+      player.speed = Math.round(room.text.length / minutes);
+    }
+
+    if (everyoneFinished(room)) endRace(roomCode);
+    else sendRoomState(roomCode);
   });
 
   socket.on('disconnect', () => {
@@ -191,7 +246,10 @@ io.on('connection', (socket) => {
     }
 
     if (!room.players[room.hostId]) room.hostId = onlineIds[0];
-    sendRoomState(roomCode);
+
+    // Everyone who is still here may have already finished
+    if (room.status === 'racing' && everyoneFinished(room)) endRace(roomCode);
+    else sendRoomState(roomCode);
   });
 });
 

@@ -17,6 +17,8 @@ const joinButton = document.getElementById('join-button');
 const joinError = document.getElementById('join-error');
 const roomCodeEl = document.getElementById('room-code');
 const copyLinkButton = document.getElementById('copy-link');
+const resultsBox = document.getElementById('results');
+const resultsBody = document.getElementById('results-body');
 const playerList = document.getElementById('player-list');
 const startButton = document.getElementById('start-button');
 const waitingText = document.getElementById('waiting-text');
@@ -47,19 +49,42 @@ function handleResponse(res) {
     return;
   }
 
-  // The room is gone or closed: forget it so the player can create a new one
   joined = false;
-  roomCode = null;
   lastStatus = null;
-  history.replaceState(null, '', location.pathname);
-  updateJoinButton();
+  if (!res.retry) {
+    // The room is gone: forget it so the player can create a new one
+    roomCode = null;
+    history.replaceState(null, '', location.pathname);
+    updateJoinButton();
+  }
   joinButton.disabled = false;
   joinError.textContent = res.error;
   showScreen(joinScreen);
 }
 
+function renderResults(results) {
+  resultsBox.hidden = results.length === 0;
+  resultsBody.replaceChildren();
+
+  results.forEach((r, i) => {
+    const cells = r.seconds !== null
+      ? [i + 1, r.name, `${r.seconds} s`, `${r.speed} chars/min`]
+      : ['—', r.name, `Didn't finish (${r.percent}%)`, '—'];
+
+    const tr = document.createElement('tr');
+    for (const value of cells) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.append(td);
+    }
+    resultsBody.append(tr);
+  });
+}
+
 function renderLobby(room) {
   roomCodeEl.textContent = room.code;
+  renderResults(room.results);
+
   playerList.replaceChildren();
   for (const [id, player] of Object.entries(room.players)) {
     const li = document.createElement('li');
@@ -81,6 +106,7 @@ function renderRacePlayers(room) {
     li.textContent = player.name;
     if (id === playerId) li.textContent += ' (you)';
     if (!player.socketId) li.textContent += ' (offline)';
+    if (player.finishedAt) li.textContent += ` finished, ${player.speed} chars/min`;
 
     const bar = document.createElement('progress');
     bar.max = room.text.length;
@@ -226,12 +252,11 @@ function beginRace() {
 }
 
 function finishRace() {
-  const seconds = Math.round((Date.now() - startTime) / 1000);
   inputEl.value = '';
   inputEl.disabled = true;
   inputEl.classList.remove('error');
   render();
-  statsEl.textContent = `Finished in ${seconds} seconds, speed: ${speed()} chars/min`;
+  statsEl.textContent = 'Finished! Waiting for the others…';
 }
 
 inputEl.addEventListener('input', () => {
