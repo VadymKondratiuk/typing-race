@@ -221,6 +221,31 @@ input::placeholder {
   letter-spacing: 0.12em;
 }
 
+.room-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The host's text language, next to Copy link */
+.language-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 0.95rem var(--display);
+}
+
+.language-picker select {
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font: 600 0.95rem / 1 var(--display);
+  cursor: pointer;
+}
+
 .player-list {
   display: grid;
   gap: 10px;
@@ -489,6 +514,20 @@ input::placeholder {
 
   .plate {
     font-size: 1.3rem;
+  }
+
+  /* Just enough to keep the picker and Copy link on one row */
+  .language-picker,
+  .language-picker select {
+    font-size: 0.85rem;
+  }
+
+  .language-picker {
+    gap: 6px;
+  }
+
+  .language-picker select {
+    padding: 10px;
   }
 }
 

@@ -17,6 +17,9 @@ const joinButton = document.getElementById('join-button');
 const joinError = document.getElementById('join-error');
 const roomCodeEl = document.getElementById('room-code');
 const copyLinkButton = document.getElementById('copy-link');
+const languagePicker = document.getElementById('language-picker');
+const languageSelect = document.getElementById('language-select');
+const languageLabel = document.getElementById('language-label');
 const resultsBox = document.getElementById('results');
 const resultsBody = document.getElementById('results-body');
 const playerList = document.getElementById('player-list');
@@ -79,6 +82,11 @@ function createCar(color) {
   return car;
 }
 
+// The display name of a language lives in its <option>, so there is no second list to keep
+function languageName(code) {
+  return languageSelect.querySelector(`option[value="${code}"]`)?.textContent ?? code;
+}
+
 function createTag(text, extraClass = '') {
   const tag = document.createElement('span');
   tag.className = `tag ${extraClass}`.trim();
@@ -137,6 +145,12 @@ function renderLobby(room) {
   const isHost = room.hostId === playerId;
   startButton.hidden = !isHost;
   waitingText.hidden = isHost;
+
+  // Only the host picks the language; everyone else just sees which one is set
+  languageSelect.value = room.language;
+  languageLabel.textContent = `Texts: ${languageName(room.language)}`;
+  languagePicker.hidden = !isHost;
+  languageLabel.hidden = isHost;
 }
 
 function renderRacePlayers(room) {
@@ -204,6 +218,10 @@ copyLinkButton.addEventListener('click', async () => {
   }
 });
 
+languageSelect.addEventListener('change', () => {
+  socket.emit('set_language', { language: languageSelect.value });
+});
+
 startButton.addEventListener('click', () => {
   socket.emit('start_race');
 });
@@ -231,7 +249,7 @@ socket.on('room_state', (room) => {
   } else {
     // We've just come from the lobby: a new race, show its text and empty lanes
     if (lastStatus !== 'countdown' && lastStatus !== 'racing') {
-      setupRace(room.text);
+      setupRace(room.text, room.language);
       lanes.clear();
       racePlayers.replaceChildren();
     }
@@ -296,7 +314,11 @@ function setLights(lit, go = false) {
 }
 
 // New race: show the text; typing is ignored until the start
-function setupRace(text) {
+function setupRace(text, language) {
+  // Tells the browser which language to shape and pick a font face for
+  textEl.lang = language;
+  inputEl.lang = language;
+
   words = text.split(' ');
   wordIndex = 0;
   typedChars = 0;

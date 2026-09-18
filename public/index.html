@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,7 +30,17 @@
     <section id="lobby-screen" hidden>
       <div class="room-bar">
         <p class="room-label">Room <strong id="room-code" class="plate"></strong></p>
-        <button id="copy-link" class="button">Copy link</button>
+        <div class="room-actions">
+          <label id="language-picker" class="language-picker" hidden>
+            Texts
+            <select id="language-select">
+              <option value="en">English</option>
+              <option value="uk">Українська</option>
+            </select>
+          </label>
+          <span id="language-label" class="tag muted" hidden></span>
+          <button id="copy-link" class="button">Copy link</button>
+        </div>
       </div>
 
       <div id="results" class="results-box" hidden>

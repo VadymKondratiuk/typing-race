@@ -14,14 +14,15 @@ Real-time typing races with friends, right in the browser. Create a room, send t
 - **Results.** Time and speed in characters per minute after every race.
 - **Made for phones too.** No autocorrect, readable text, and a short connection drop doesn't throw you out of the race.
 - **Fair play.** The server measures the time, and pasting into the field is blocked.
-- **Ukrainian texts** that don't repeat until the room has played them all.
+- **English and Ukrainian texts.** The host picks the language in the lobby, and texts don't repeat until the room has played them all.
 
 ## How to play
 
 1. Enter your name and press **Create room**.
 2. Press **Copy link** and send it to your friends.
-3. When everyone is in the lobby, the host presses **Start race**.
-4. Type the highlighted word and press space. If you make a mistake, the field turns red until you fix it.
+3. The host chooses the language of the texts next to the room code. Everyone in the room races in it.
+4. When everyone is in the lobby, the host presses **Start race**.
+5. Type the highlighted word and press space. If you make a mistake, the field turns red until you fix it.
 
 <p align="center">
   <img src="docs/phone.png" alt="A race on a phone" width="280">
@@ -29,12 +30,13 @@ Real-time typing races with friends, right in the browser. Create a room, send t
 
 ## How it works
 
-The server is the only source of truth. It keeps rooms in memory and, after every change, sends the full room state to everyone in the room with a single `room_state` event. The page never keeps its own copy of the game: it redraws the screen from the latest state and sends one of four events back.
+The server is the only source of truth. It keeps rooms in memory and, after every change, sends the full room state to everyone in the room with a single `room_state` event. The page never keeps its own copy of the game: it redraws the screen from the latest state and sends one of five events back.
 
 | Event | Sent when |
 | --- | --- |
 | `create_room` | a player creates a room and becomes its host |
 | `join_room` | a player opens a room link; refused while a race is on |
+| `set_language` | the host picks the language of the texts; ignored from anyone else |
 | `start_race` | the host presses **Start race** |
 | `progress` | a player completes a word; carries the total of typed characters |
 
@@ -72,7 +74,9 @@ Open http://localhost:3000 in two browser windows and race yourself. `npm run de
 ```
 typing-race/
 ├── server.js       # Express + Socket.IO: rooms, countdown, progress, results
-├── texts.json      # texts for the races
+├── texts/          # race texts, one file per language
+│   ├── en.json
+│   └── uk.json
 ├── render.yaml     # Render Blueprint for the deploy button
 ├── docs/           # images for this README
 └── public/
@@ -83,7 +87,9 @@ typing-race/
 
 ## Adding texts
 
-Add a string to `texts.json` and restart the server. Inside a text, use «guillemets» instead of straight double quotes, which JSON would need escaped. Curly apostrophes, dashes and quotes are turned into plain characters, so everyone can type them on any keyboard layout. The current texts are 60–170 characters long; much longer ones may not fit into the 2-minute limit.
+Add a string to `texts/en.json` or `texts/uk.json` and restart the server. Inside a text, use «guillemets» instead of straight double quotes, which JSON would need escaped. Curly apostrophes, dashes and quotes are turned into plain characters, so everyone can type them on any keyboard layout. The current texts are 60–170 characters long; much longer ones may not fit into the 2-minute limit.
+
+A new language takes three lines: drop a `texts/<code>.json` file next to the others, add its code to `LANGUAGES` in `server.js`, and add an `<option>` to the language picker in `public/index.html`. The first code in `LANGUAGES` is what new rooms start with.
 
 ## Deploy
 

@@ -35,19 +35,24 @@ function normalizeText(str) {
   return normalizeChars(str).replace(/\s+/g, ' ').trim();
 }
 
-const TEXTS = require('./texts.json').map(normalizeText);
+const LANGUAGES = ['en', 'uk']; // texts/<code>.json, the first one is the default
+const TEXTS = Object.fromEntries(
+  LANGUAGES.map((lang) => [lang, require(`./texts/${lang}.json`).map(normalizeText)]),
+);
 
-// Texts come in random order and don't repeat until the room has played them all
-function nextText(code) {
-  if (!textDecks[code]?.length) {
-    const deck = TEXTS.map((_, i) => i);
+// Texts come in random order and don't repeat until the room has played them all.
+// Every language has its own deck, so switching doesn't cut a deck short.
+function nextText(code, lang) {
+  const decks = (textDecks[code] ??= {});
+  if (!decks[lang]?.length) {
+    const deck = TEXTS[lang].map((_, i) => i);
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
-    textDecks[code] = deck;
+    decks[lang] = deck;
   }
-  return TEXTS[textDecks[code].pop()];
+  return TEXTS[lang][decks[lang].pop()];
 }
 
 // The first color nobody in the room has yet
@@ -159,6 +164,7 @@ io.on('connection', (socket) => {
     rooms[code] = {
       hostId: null, // addPlayer makes the creator the host
       status: 'lobby',
+      language: LANGUAGES[0], // the host can change it in the lobby
       text: '',
       startedAt: null,
       results: [], // table of the last race
@@ -190,6 +196,20 @@ io.on('connection', (socket) => {
     sendRoomState(code);
   });
 
+  socket.on('set_language', (data) => {
+    const { roomCode, playerId } = socket.data;
+    const room = rooms[roomCode];
+    const language = data?.language;
+
+    // Only the host can change the language, and only from the lobby
+    if (!room || room.hostId !== playerId || room.status !== 'lobby') return;
+    if (!LANGUAGES.includes(language) || language === room.language) return;
+
+    room.language = language;
+    console.log(`Room ${roomCode} switched texts to ${language}`);
+    sendRoomState(roomCode);
+  });
+
   socket.on('start_race', () => {
     const { roomCode, playerId } = socket.data;
     const room = rooms[roomCode];
@@ -199,7 +219,7 @@ io.on('connection', (socket) => {
 
     room.status = 'countdown';
     room.countdown = COUNTDOWN_SECONDS;
-    room.text = nextText(roomCode);
+    room.text = nextText(roomCode, room.language);
     room.startedAt = null;
     for (const player of Object.values(room.players)) {
       player.progress = 0;
