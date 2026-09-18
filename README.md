@@ -4,7 +4,7 @@ Real-time typing races with friends, right in the browser. Create a room, send t
 
 **Play:** https://typing-race-cqd9.onrender.com/
 
-![Three players race, then the results table appears](docs/race.gif)
+![Three players start a race from the lobby, then the results table appears](docs/race.gif)
 
 ## Features
 
